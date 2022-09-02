@@ -30,8 +30,7 @@ DB* DBFactory::CreateDB(utils::Properties &props) {
     int slaves = stoi(props["slaves"]);
     return new RedisDB(props["host"].c_str(), port, slaves);
   } else if (props["dbname"] == "memcached") {
-    int port = stoi(props["port"]);
-    return new MemcachedDB(props["host"].c_str(), port);
+    return new MemcachedDB(props["host"].c_str());
   } else if (props["dbname"] == "tbb_rand") {
     return new TbbRandDB;
   } else if (props["dbname"] == "tbb_scan") {
