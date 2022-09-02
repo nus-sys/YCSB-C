@@ -20,7 +20,6 @@ int MemcachedDB::Read(const std::string &table, const std::string &key,
   uint32_t flags;
 
   retrieved_value = memcached_get(memc, key.c_str(), key.length(), &value_length, &flags, &rc);
-  printf("Yay!\n");
 
   if (rc == MEMCACHED_SUCCESS) {
     cout << "Key retrieved successfully" << endl;
