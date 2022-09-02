@@ -38,7 +38,7 @@ int MemcachedDB::Update(const string &table, const string &key,
   for (KVPair &p : values) {
     rc = memcached_set(memc, key.c_str(), key.length(), p.second.c_str(), p.second.length(), (time_t)0, (uint32_t)0);
     if (rc == MEMCACHED_SUCCESS) {
-      cout << "Key stored successfully! key " << key << ", value: " << value << endl;
+      cout << "Key stored successfully! key " << key << ", value: " << p.second << endl;
     } else {
       cout << "Couldn't update key: " << memcached_strerror(memc, rc) << endl;
     }
