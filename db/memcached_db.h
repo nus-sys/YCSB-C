@@ -20,7 +20,7 @@ namespace ycsbc {
 
 class MemcachedDB : public DB {
  public:
-  MemcachedDB(const char *host, int port, int slaves) {
+  MemcachedDB(const char *host, int port) {
     memcached_return rc;
     
     memc = memcached_create(NULL);
