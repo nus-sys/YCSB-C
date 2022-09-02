@@ -3,7 +3,7 @@
 //  YCSB-C
 //
 
-#include "memcached_db.h"
+#include "db/memcached_db.h"
 
 #include <cstring>
 

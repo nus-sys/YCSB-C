@@ -1,10 +1,10 @@
 //
-//  redis_db.h
+//  memcached_db.h
 //  YCSB-C
 //
 
-#ifndef YCSB_C_REDIS_DB_H_
-#define YCSB_C_REDIS_DB_H_
+#ifndef YCSB_C_MEMCACHED_DB_H_
+#define YCSB_C_MEMCACHED_DB_H_
 
 #include "core/db.h"
 
@@ -61,5 +61,5 @@ private:
 
 } // ycsbc
 
-#endif // YCSB_C_REDIS_DB_H_
+#endif // YCSB_C_MEMCACHED_DB_H_
 
