@@ -12,6 +12,7 @@
 #include "db/basic_db.h"
 #include "db/lock_stl_db.h"
 #include "db/redis_db.h"
+#include "db/memcached_db.h"
 #include "db/tbb_rand_db.h"
 #include "db/tbb_scan_db.h"
 
