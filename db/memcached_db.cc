@@ -9,6 +9,8 @@
 
 using namespace std;
 
+namespace ycsbc {
+
 int MemcachedDB::Read(const std::string &table, const std::string &key,
            const std::vector<std::string> *fields,
            std::vector<KVPair> &result) {
@@ -53,3 +55,5 @@ int MemcachedDB::Update(const string &table, const string &key,
   }
 
 }
+
+} // ycsbc
