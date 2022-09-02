@@ -20,18 +20,18 @@ namespace ycsbc {
 
 class MemcachedDB : public DB {
  public:
-  MemcachedDB(const char *host) {
+  MemcachedDB(const char * host) {
     memcached_return rc;
     
-    memc = memcached_create(NULL);
+    memc_ = memcached_create(NULL);
     
-    servers = NULL;
-    servers = memcached_server_list_append(servers, host, 11211, &rc);
-    rc = memcached_server_push(memc, servers);
+    servers_ = NULL;
+    servers_ = memcached_server_list_append(servers_, host, 11211, &rc);
+    rc = memcached_server_push(memc_, servers_);
     if (rc == MEMCACHED_SUCCESS) {
-      cout << "Added server successfully" << endl;
+      cout << pthread_self() << " added server successfully" << endl;
     } else {
-      cout << "Couldn't add server: " << memcached_strerror(memc, rc) << endl;
+      cout << "Couldn't add server: " << memcached_strerror(memc_, rc) << endl;
     }
   }
 
@@ -54,9 +54,9 @@ class MemcachedDB : public DB {
   }
 
   int Delete(const std::string &table, const std::string &key);
-private:
-  memcached_server_st * servers;
-  memcached_st * memc;
+
+  memcached_server_st * servers_;
+  memcached_st * memc_;
 };
 
 } // ycsbc
