@@ -19,7 +19,7 @@ int MemcachedDB::Read(const std::string &table, const std::string &key,
   size_t value_length;
   uint32_t flags;
 
-  retrieved_value = memcached_get(memc, key, strlen(key), &value_length, &flags, &rc);
+  retrieved_value = memcached_get(memc, key, key.length(), &value_length, &flags, &rc);
   printf("Yay!\n");
 
   if (rc == MEMCACHED_SUCCESS) {
@@ -36,7 +36,7 @@ int MemcachedDB::Update(const string &table, const string &key,
   memcached_return rc;
 
   for (KVPair &p : values) {
-    rc = memcached_set(memc, key, strlen(key), value, strlen(value), (time_t)0, (uint32_t)0);
+    rc = memcached_set(memc, key, key.length(), value, value.length(), (time_t)0, (uint32_t)0);
     if (rc == MEMCACHED_SUCCESS) {
       cout << "Key stored successfully" << endl;
     } else {
@@ -46,7 +46,7 @@ int MemcachedDB::Update(const string &table, const string &key,
 
   int MemcachedDB::Delete(const std::string &table, const std::string &key) {
     memcached_return rc;
-    rc = memcached_delete(memc, key, strlen(key), (time_t)0);
+    rc = memcached_delete(memc, key, key.length(), (time_t)0);
     if (rc == MEMCACHED_SUCCESS) {
       cout << "Key deleted successfully" << endl;
     } else {
