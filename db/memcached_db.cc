@@ -26,9 +26,9 @@ int MemcachedDB::Read(const std::string &table, const std::string &key,
   //   cout << "The key " << key << " returned value " << retrieved_value << endl;
   //   free(retrieved_value);
   // } else {
-  if (rc != MEMCACHED_SUCCESS) {
-    cout << "Couldn't retrieve key: " << memcached_strerror(memc, rc) << endl;
-  }
+  // if (rc != MEMCACHED_SUCCESS) {
+  //   cout << "Couldn't retrieve key: " << memcached_strerror(memc, rc) << endl;
+  // }
   return DB::kOK;
 }
 
@@ -41,9 +41,9 @@ int MemcachedDB::Update(const string &table, const string &key,
     // if (rc == MEMCACHED_SUCCESS) {
     //   cout << "Key stored successfully! key " << key << ", value: " << p.second << endl;
     // } else {
-    if (rc != MEMCACHED_SUCCESS) {
-      cout << "Couldn't update key: " << memcached_strerror(memc, rc) << endl;
-    }
+    // if (rc != MEMCACHED_SUCCESS) {
+    //   cout << "Couldn't update key: " << memcached_strerror(memc, rc) << endl;
+    // }
   }
   return DB::kOK;
 }
@@ -54,9 +54,9 @@ int MemcachedDB::Delete(const std::string &table, const std::string &key) {
   // if (rc == MEMCACHED_SUCCESS) {
   //   cout << "Key deleted successfully" << endl;
   // } else {
-  if (rc != MEMCACHED_SUCCESS) {
-    cout << "Couldn't delete key: " << memcached_strerror(memc, rc) << endl;
-  }
+  // if (rc != MEMCACHED_SUCCESS) {
+  //   cout << "Couldn't delete key: " << memcached_strerror(memc, rc) << endl;
+  // }
   return DB::kOK;
 }
 
