@@ -1,8 +1,13 @@
 CC=g++
+CYGNUS=y
 CFLAGS=-std=c++11 -c -g -Wall -fgnu-tm
 INCLUDES=-I../
 SOURCES=$(wildcard *.cc)
 OBJECTS=$(SOURCES:.cc=.o)
+ifeq ($(CYGNUS),y)
+RUNTIME_DIR	= /home/yihan/cygnus/Cygnus
+CFLAGS	+= -DCYGNUS -I$(RUNTIME_DIR)/include/ $(shell pkg-config --cflags libdpdk)
+endif
 
 all: $(SOURCES) $(OBJECTS)
 

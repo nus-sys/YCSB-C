@@ -16,6 +16,13 @@
 #include "core/client.h"
 #include "core/core_workload.h"
 #include "db/db_factory.h"
+#ifdef CYGNUS
+extern "C"
+{
+#include "cygnus.h"
+#include "pthl/pthl.h"
+}
+#endif
 
 using namespace std;
 
@@ -40,6 +47,9 @@ int DelegateClient(ycsbc::DB *db, ycsbc::CoreWorkload *wl, const int num_ops,
 }
 
 int main(const int argc, const char *argv[]) {
+#ifdef CYGNUS
+  cygnus_start();
+#endif
   utils::Properties props;
   string file_name = ParseCommandLine(argc, argv, props);
 
@@ -90,6 +100,10 @@ int main(const int argc, const char *argv[]) {
   cerr << "# Transaction throughput (KTPS)" << endl;
   cerr << props["dbname"] << '\t' << file_name << '\t' << num_threads << '\t';
   cerr << total_ops / duration / 1000 << endl;
+
+#ifdef CYGNUS
+  cygnus_terminate();
+#endif
 }
 
 string ParseCommandLine(int argc, const char *argv[], utils::Properties &props) {
