@@ -19,7 +19,7 @@ int MemcachedDB::Read(const std::string &table, const std::string &key,
   size_t value_length;
   uint32_t flags;
 
-  retrieved_value = memcached_get(memc, key, key.length(), &value_length, &flags, &rc);
+  retrieved_value = memcached_get(memc, key.c_str(), key.length(), &value_length, &flags, &rc);
   printf("Yay!\n");
 
   if (rc == MEMCACHED_SUCCESS) {
@@ -29,6 +29,7 @@ int MemcachedDB::Read(const std::string &table, const std::string &key,
   } else {
     cout << "Couldn't retrieve key: " << memcached_strerror(memc, rc) << endl;
   }
+  return DB::kOK;
 }
 
 int MemcachedDB::Update(const string &table, const string &key,
@@ -36,24 +37,25 @@ int MemcachedDB::Update(const string &table, const string &key,
   memcached_return rc;
 
   for (KVPair &p : values) {
-    rc = memcached_set(memc, key, key.length(), value, value.length(), (time_t)0, (uint32_t)0);
+    rc = memcached_set(memc, key.c_str(), key.length(), p.second.c_str(), p.second.length(), (time_t)0, (uint32_t)0);
     if (rc == MEMCACHED_SUCCESS) {
       cout << "Key stored successfully" << endl;
     } else {
       cout << "Couldn't update key: " << memcached_strerror(memc, rc) << endl;
     }
   }
+  return DB::kOK;
+}
 
-  int MemcachedDB::Delete(const std::string &table, const std::string &key) {
-    memcached_return rc;
-    rc = memcached_delete(memc, key, key.length(), (time_t)0);
-    if (rc == MEMCACHED_SUCCESS) {
-      cout << "Key deleted successfully" << endl;
-    } else {
-      cout << "Couldn't delete key: " << memcached_strerror(memc, rc) << endl;
-    }
+int MemcachedDB::Delete(const std::string &table, const std::string &key) {
+  memcached_return rc;
+  rc = memcached_delete(memc, key.c_str(), key.length(), (time_t)0);
+  if (rc == MEMCACHED_SUCCESS) {
+    cout << "Key deleted successfully" << endl;
+  } else {
+    cout << "Couldn't delete key: " << memcached_strerror(memc, rc) << endl;
   }
-
+  return DB::kOK;
 }
 
 } // ycsbc
