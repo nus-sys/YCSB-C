@@ -11,7 +11,7 @@
 #include "lib/stl_hashtable.h"
 
 #include <vector>
-#include <mutex>
+// #include <mutex>
 
 namespace vmp {
 
@@ -28,43 +28,43 @@ class LockStlHashtable : public StlHashtable<V> {
   std::size_t Size() const;
 
  private:
-  mutable std::mutex mutex_;
+  // mutable std::mutex mutex_;
 };
 
 template<class V>
 inline V LockStlHashtable<V>::Get(const char *key) const {
-  std::lock_guard<std::mutex> lock(mutex_);
+  // std::lock_guard<std::mutex> lock(mutex_);
   return StlHashtable<V>::Get(key);
 }
 
 template<class V>
 inline bool LockStlHashtable<V>::Insert(const char *key, V value) {
-  std::lock_guard<std::mutex> lock(mutex_);
+  // std::lock_guard<std::mutex> lock(mutex_);
   return StlHashtable<V>::Insert(key, value);
 }
 
 template<class V>
 inline V LockStlHashtable<V>::Update(const char *key, V value) {
-  std::lock_guard<std::mutex> lock(mutex_);
+  // std::lock_guard<std::mutex> lock(mutex_);
   return StlHashtable<V>::Update(key, value);
 }
 
 template<class V>
 inline V LockStlHashtable<V>::Remove(const char *key) {
-  std::lock_guard<std::mutex> lock(mutex_);
+  // std::lock_guard<std::mutex> lock(mutex_);
   return StlHashtable<V>::Remove(key);
 }
 
 template<class V>
 inline std::size_t LockStlHashtable<V>::Size() const {
-  std::lock_guard<std::mutex> lock(mutex_);
+  // std::lock_guard<std::mutex> lock(mutex_);
   return StlHashtable<V>::Size();
 }
 
 template<class V>
 inline std::vector<typename LockStlHashtable<V>::KVPair>
 LockStlHashtable<V>::Entries(const char *key, size_t n) const {
-  std::lock_guard<std::mutex> lock(mutex_);
+  // std::lock_guard<std::mutex> lock(mutex_);
   return StlHashtable<V>::Entries(key, n);
 }
 

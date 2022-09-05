@@ -13,7 +13,7 @@
 
 #include <atomic>
 #include <cassert>
-#include <mutex>
+// #include <mutex>
 #include <vector>
 #include "utils.h"
 
@@ -32,7 +32,7 @@ class DiscreteGenerator : public Generator<Value> {
   std::vector<std::pair<Value, double>> values_;
   double sum_;
   std::atomic<Value> last_;
-  std::mutex mutex_;
+  // std::mutex mutex_;
 };
 
 template <typename Value>
@@ -46,9 +46,9 @@ inline void DiscreteGenerator<Value>::AddValue(Value value, double weight) {
 
 template <typename Value>
 inline Value DiscreteGenerator<Value>::Next() {
-  mutex_.lock();
+  // mutex_.lock();
   double chooser = utils::RandomDouble();
-  mutex_.unlock();
+  // mutex_.unlock();
   
   for (auto p = values_.cbegin(); p != values_.cend(); ++p) {
     if (chooser < p->second / sum_) {

@@ -19,6 +19,7 @@
 #ifdef CYGNUS
 extern "C"
 {
+#include <pthread.h>
 #include "cygnus.h"
 #include "pthl/pthl.h"
 }
@@ -28,11 +29,24 @@ using namespace std;
 
 void UsageMessage(const char *command);
 bool StrStartWith(const char *str, const char *pre);
-string ParseCommandLine(int argc, const char *argv[], utils::Properties &props);
+string ParseCommandLine(int argc, char *argv[], utils::Properties &props);
 
-int DelegateClient(ycsbc::DB *db, ycsbc::CoreWorkload *wl, const int num_ops,
-    bool is_loading) {
+struct ClientArgs {
+  ycsbc::DB *db;
+  ycsbc::CoreWorkload *wl;
+  int num_ops;
+  bool is_loading;
+  int oks;
+};
+
+void * DelegateClient(void * args) {
+  ycsbc::DB *db = ((struct ClientArgs *)args)->db;
+  ycsbc::CoreWorkload *wl = ((struct ClientArgs *)args)->wl;
+  int num_ops = ((struct ClientArgs *)args)->num_ops;
+  bool is_loading = ((struct ClientArgs *)args)->is_loading;
+
   int oks = 0;
+
   db->Init();
   ycsbc::Client client(*db, *wl);
   for (int i = 0; i < num_ops; ++i) {
@@ -43,13 +57,19 @@ int DelegateClient(ycsbc::DB *db, ycsbc::CoreWorkload *wl, const int num_ops,
     }
   }
   db->Close();
-  return oks;
+
+  ((struct ClientArgs *)args)->oks = oks;
+  return NULL;
 }
 
-int main(const int argc, const char *argv[]) {
+int main(int argc, char * argv[]) {
 #ifdef CYGNUS
   cygnus_start();
 #endif
+
+  for (int i = 0; i < argc; i++) {
+    cout << argv[i] << endl;
+  }
   utils::Properties props;
   string file_name = ParseCommandLine(argc, argv, props);
 
@@ -65,48 +85,88 @@ int main(const int argc, const char *argv[]) {
   const int num_threads = stoi(props.GetProperty("threadcount", "1"));
 
   // Loads data
-  vector<future<int>> actual_ops;
+  // vector<future<int>> actual_ops;
   int total_ops = stoi(props[ycsbc::CoreWorkload::RECORD_COUNT_PROPERTY]);
+  pthread_t pids[10];
+  struct ClientArgs args[10];
+  int err;
   for (int i = 0; i < num_threads; ++i) {
-    actual_ops.emplace_back(async(launch::async,
-        DelegateClient, db, &wl, total_ops / num_threads, true));
+    // actual_ops.emplace_back(async(launch::async,
+    //     DelegateClient, db, &wl, total_ops / num_threads, true));
+    struct ClientArgs * arg = &args[i];
+    arg->db = db;
+    arg->wl = &wl;
+    arg->num_ops = total_ops / num_threads;
+    arg->is_loading = true;
+    arg->oks = 0;
+    err = pthread_create(&pids[i], NULL, DelegateClient, (void *)arg);
+      if (err) {
+        perror(" pthread_create consumer1 failed(2)!");
+      }
   }
-  assert((int)actual_ops.size() == num_threads);
+  // assert((int)actual_ops.size() == num_threads);
+
+  for (int i = 0; i < num_threads; ++i) {
+    pthread_join(pids[i], NULL);
+  }
 
   int sum = 0;
-  for (auto &n : actual_ops) {
-    assert(n.valid());
-    sum += n.get();
+  // for (auto &n : actual_ops) {
+  //   assert(n.valid());
+  //   sum += n.get();
+  // }
+  for (int i = 0; i < num_threads; ++i) {
+    sum += args[i].oks;
   }
   cerr << "# Loading records:\t" << sum << endl;
 
   // Peforms transactions
-  actual_ops.clear();
+  // actual_ops.clear();
   total_ops = stoi(props[ycsbc::CoreWorkload::OPERATION_COUNT_PROPERTY]);
   utils::Timer<double> timer;
   timer.Start();
   for (int i = 0; i < num_threads; ++i) {
-    actual_ops.emplace_back(async(launch::async,
-        DelegateClient, db, &wl, total_ops / num_threads, false));
+    // actual_ops.emplace_back(async(launch::async,
+    //     DelegateClient, db, &wl, total_ops / num_threads, false));
+    struct ClientArgs * arg = &args[i];
+    arg->db = db;
+    arg->wl = &wl;
+    arg->num_ops = total_ops / num_threads;
+    arg->is_loading = false;
+    arg->oks = 0;
+    err = pthread_create(&pids[i], NULL, DelegateClient, (void *)arg);
+      if (err) {
+        perror(" pthread_create consumer1 failed(2)!");
+      }
   }
-  assert((int)actual_ops.size() == num_threads);
+
+  for (int i = 0; i < num_threads; ++i) {
+    pthread_join(pids[i], NULL);
+  }
+
+  // assert((int)actual_ops.size() == num_threads);
 
   sum = 0;
-  for (auto &n : actual_ops) {
-    assert(n.valid());
-    sum += n.get();
+  // for (auto &n : actual_ops) {
+  //   assert(n.valid());
+  //   sum += n.get();
+  // }
+  for (int i = 0; i < num_threads; ++i) {
+    sum += args[i].oks;
   }
   double duration = timer.End();
   cerr << "# Transaction throughput (KTPS)" << endl;
   cerr << props["dbname"] << '\t' << file_name << '\t' << num_threads << '\t';
   cerr << total_ops / duration / 1000 << endl;
 
+
 #ifdef CYGNUS
   cygnus_terminate();
 #endif
+  return 0;
 }
 
-string ParseCommandLine(int argc, const char *argv[], utils::Properties &props) {
+string ParseCommandLine(int argc, char *argv[], utils::Properties &props) {
   int argindex = 1;
   string filename;
   while (argindex < argc && StrStartWith(argv[argindex], "-")) {
@@ -157,6 +217,7 @@ string ParseCommandLine(int argc, const char *argv[], utils::Properties &props) 
         exit(0);
       }
       filename.assign(argv[argindex]);
+#if 0
       ifstream input(argv[argindex]);
       try {
         props.Load(input);
@@ -165,6 +226,8 @@ string ParseCommandLine(int argc, const char *argv[], utils::Properties &props) 
         exit(0);
       }
       input.close();
+#endif
+      props.Load(argv[argindex]);
       argindex++;
     } else {
       cout << "Unknown option '" << argv[argindex] << "'" << endl;

@@ -12,7 +12,7 @@
 #include "generator.h"
 
 #include <atomic>
-#include <mutex>
+// #include <mutex>
 #include <random>
 
 namespace ycsbc {
@@ -29,16 +29,16 @@ class UniformGenerator : public Generator<uint64_t> {
   std::mt19937_64 generator_;
   std::uniform_int_distribution<uint64_t> dist_;
   uint64_t last_int_;
-  std::mutex mutex_;
+  // std::mutex mutex_;
 };
 
 inline uint64_t UniformGenerator::Next() {
-  std::lock_guard<std::mutex> lock(mutex_);
+  // std::lock_guard<std::mutex> lock(mutex_);
   return last_int_ = dist_(generator_);
 }
 
 inline uint64_t UniformGenerator::Last() {
-  std::lock_guard<std::mutex> lock(mutex_);
+  // std::lock_guard<std::mutex> lock(mutex_);
   return last_int_;
 }
 

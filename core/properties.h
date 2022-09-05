@@ -25,7 +25,8 @@ class Properties {
   const std::map<std::string, std::string> &properties() const;
 
   void SetProperty(const std::string &key, const std::string &value);
-  bool Load(std::ifstream &input);
+  // bool Load(std::ifstream &input);
+  bool Load(char * input);
  private:
   std::map<std::string, std::string> properties_;
 };
@@ -50,7 +51,7 @@ inline void Properties::SetProperty(const std::string &key,
                                     const std::string &value) {
   properties_[key] = value;
 }
-
+#if 0
 inline bool Properties::Load(std::ifstream &input) {
   if (!input.is_open()) throw utils::Exception("File not open!");
 
@@ -62,6 +63,30 @@ inline bool Properties::Load(std::ifstream &input) {
     if (pos == std::string::npos) continue;
     SetProperty(Trim(line.substr(0, pos)), Trim(line.substr(pos + 1)));
   }
+  return true;
+}
+#endif
+
+inline bool Properties::Load(char * input) {
+  FILE * fp;
+  char * line = NULL;
+  size_t len = 0;
+  ssize_t read;
+  char field[32], value[32];
+
+  fp = fopen(input, "r");
+  if (fp == NULL) {
+      return false;
+  }
+
+  while ((read = getline(&line, &len, fp)) != -1) {
+    if (sscanf(line, "%[^=]=%s", field, value) == 2) {
+      SetProperty(field, value);
+    }
+  }
+
+  fclose(fp);
+
   return true;
 }
 

@@ -1,7 +1,7 @@
 CC=g++
 CYGNUS=y
-CFLAGS=-std=c++11 -g -Wall -pthread -I./
-LDFLAGS= -lpthread -ltbb -lhiredis -lmemcached
+CFLAGS= -Wall -Werror -O3 -g -fno-stack-protector -fno-omit-frame-pointer -fPIC -I./ -I/usr/include/
+LDFLAGS= -L/usr/lib -L/home/libmemcached/libmemcached/.libs -lmemcached
 SUBDIRS=core db redis
 SUBSRCS=$(wildcard core/*.cc) $(wildcard db/*.cc)
 OBJECTS=$(SUBSRCS:.cc=.o)
@@ -13,13 +13,17 @@ CFLAGS	+= -DCYGNUS -I$(RUNTIME_DIR)/include/ $(shell pkg-config --cflags libdpdk
 LDFLAGS	+= -L$(RUNTIME_DIR)/build -lcygnus $(shell pkg-config --libs libdpdk)
 endif
 
+LDFLAGS	+= -lhiredis -lpthread
+
+CXX_STANDARD	:= -std=gnu++11
+
 all: $(SUBDIRS) $(EXEC)
 
 $(SUBDIRS):
 	$(MAKE) -C $@
 
 $(EXEC): $(wildcard *.cc) $(OBJECTS)
-	$(CC) $(CFLAGS) $^ $(LDFLAGS) -o $@
+	$(CC) $(CFLAGS) $(CXX_STANDARD) $^ -o $@ $(LDFLAGS)
 
 clean:
 	for dir in $(SUBDIRS); do \
