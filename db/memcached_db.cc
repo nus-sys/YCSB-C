@@ -21,7 +21,7 @@ int MemcachedDB::Read(const std::string &table, const std::string &key,
 
   retrieved_value = memcached_get(memc_, key.c_str(), key.length(), &value_length, &flags, &rc);
 
-  cout << pthread_self() << " read key: " << key << ", value: " << retrieved_value << endl;
+  // cout << pthread_self() << " read key: " << key << ", value: " << retrieved_value << endl;
 
   if (rc == MEMCACHED_SUCCESS) {
     result.push_back(make_pair(key, std::string(retrieved_value)));
