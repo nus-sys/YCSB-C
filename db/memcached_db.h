@@ -29,7 +29,7 @@ class MemcachedDB : public DB {
     servers_ = memcached_server_list_append(servers_, host, 11211, &rc);
     rc = memcached_server_push(memc_, servers_);
     if (rc == MEMCACHED_SUCCESS) {
-      cout << pthread_self() << " added server successfully" << endl;
+      // cout << pthread_self() << " added server successfully" << endl;
     } else {
       cout << "Couldn't add server: " << memcached_strerror(memc_, rc) << endl;
     }

@@ -16,14 +16,13 @@
 #include "core/client.h"
 #include "core/core_workload.h"
 #include "db/db_factory.h"
-#ifdef CYGNUS
+
 extern "C"
 {
+#include <sys/time.h>
+#include <unistd.h>
 #include <pthread.h>
-#include "cygnus.h"
-#include "pthl/pthl.h"
 }
-#endif
 
 using namespace std;
 
@@ -32,47 +31,22 @@ bool StrStartWith(const char *str, const char *pre);
 string ParseCommandLine(int argc, char *argv[], utils::Properties &props);
 
 struct ClientArgs {
-  ycsbc::DB *db;
-  ycsbc::CoreWorkload *wl;
+  // ycsbc::DB *db;
+  // ycsbc::CoreWorkload *wl;
+  int core;
+  int num_record;
   int num_ops;
-  bool is_loading;
+  // bool is_loading;
   int oks;
-};
+  struct timeval start;
+  struct timeval end;
+} __attribute__((aligned(64)));
 
-void * DelegateClient(void * args) {
-  ycsbc::DB *db = ((struct ClientArgs *)args)->db;
-  ycsbc::CoreWorkload *wl = ((struct ClientArgs *)args)->wl;
-  int num_ops = ((struct ClientArgs *)args)->num_ops;
-  bool is_loading = ((struct ClientArgs *)args)->is_loading;
+utils::Properties props;
+pthread_barrier_t barrier;
 
-  int oks = 0;
-
-  db->Init();
-  ycsbc::Client client(*db, *wl);
-  for (int i = 0; i < num_ops; ++i) {
-    if (is_loading) {
-      oks += client.DoInsert();
-    } else {
-      oks += client.DoTransaction();
-    }
-  }
-  db->Close();
-
-  ((struct ClientArgs *)args)->oks = oks;
-  return NULL;
-}
-
-int main(int argc, char * argv[]) {
-#ifdef CYGNUS
-  cygnus_start();
-#endif
-
-  for (int i = 0; i < argc; i++) {
-    cout << argv[i] << endl;
-  }
-  utils::Properties props;
-  string file_name = ParseCommandLine(argc, argv, props);
-
+void * ClientMain(void * arg) {
+  struct ClientArgs * args = (struct ClientArgs *)arg;
   ycsbc::DB *db = ycsbc::DBFactory::CreateDB(props);
   if (!db) {
     cout << "Unknown database name " << props["dbname"] << endl;
@@ -82,87 +56,168 @@ int main(int argc, char * argv[]) {
   ycsbc::CoreWorkload wl;
   wl.Init(props);
 
+  int oks = 0;
+
+  db->Init();
+  ycsbc::Client client(*db, wl);
+
+  for (int i = 0; i < args->num_record; ++i) {
+    oks += client.DoInsert();
+  }
+
+  cerr << "# Loading records:\t" << oks << endl;
+
+  pthread_barrier_wait(&barrier);
+
+  oks = 0;
+
+  /* Actual transaction */
+
+  gettimeofday(&args->start, NULL);
+  for (int i = 0; i < args->num_ops; ++i) {
+    oks += client.DoTransaction();
+  }
+  gettimeofday(&args->end, NULL);
+
+  args->oks = oks;
+
+  db->Close();
+
+  return NULL;
+}
+
+void * DelegateClient(void * arg) {
+  struct ClientArgs * args = (struct ClientArgs *)arg;
+  int err;
+  cpu_set_t cpu;
+  pthread_t pids[64];
+  struct ClientArgs pargs[64];
+  pthread_attr_t pattr;
   const int num_threads = stoi(props.GetProperty("threadcount", "1"));
 
-  // Loads data
-  // vector<future<int>> actual_ops;
-  int total_ops = stoi(props[ycsbc::CoreWorkload::RECORD_COUNT_PROPERTY]);
-  pthread_t pids[10];
-  struct ClientArgs args[10];
-  int err;
+  err = pthread_attr_init(&pattr);
+
+  /* Binding all child threads to the same core */
+  CPU_ZERO(&cpu);
+  CPU_SET(sched_getcpu(), &cpu);
+  err = pthread_attr_setaffinity_np(&pattr, sizeof(cpu_set_t), &cpu);
+
   for (int i = 0; i < num_threads; ++i) {
-    // actual_ops.emplace_back(async(launch::async,
-    //     DelegateClient, db, &wl, total_ops / num_threads, true));
-    struct ClientArgs * arg = &args[i];
-    arg->db = db;
-    arg->wl = &wl;
-    arg->num_ops = total_ops / num_threads;
-    arg->is_loading = true;
-    arg->oks = 0;
-    err = pthread_create(&pids[i], NULL, DelegateClient, (void *)arg);
+    pargs[i].num_record = args->num_record / num_threads;
+    pargs[i].num_ops = args->num_ops / num_threads;
+    pargs[i].oks = 0;
+    err = pthread_create(&pids[i], &pattr, ClientMain, &pargs[i]);
       if (err) {
-        perror(" pthread_create consumer1 failed(2)!");
+        printf(" [%s on core %d] pthread_create return %d!\n", __func__, sched_getcpu(), err);
+      } else {
+        fprintf(stderr, " Created new worker thread %lu on core %d!\n", pids[i], sched_getcpu());
       }
   }
-  // assert((int)actual_ops.size() == num_threads);
 
   for (int i = 0; i < num_threads; ++i) {
     pthread_join(pids[i], NULL);
+  }
+
+  for (int i = 0; i < num_threads; ++i) {
+    args->oks += pargs[i].oks;
+  }
+
+  struct timeval begin, done;
+  begin = pargs[0].start;
+  done = pargs[0].end;
+  for (int i = 1; i < num_threads; i++) {
+    if (!timercmp(&begin, &pargs[i].start, <=)) {
+      begin = pargs[i].start;
+    }
+    if (!timercmp(&done, &pargs[i].end, >=)) {
+      done = pargs[i].end;
+    }
+  }
+
+  args->start = begin;
+  args->end = done;
+
+  return NULL;
+}
+
+int main(int argc, char * argv[]) {
+  int err;
+  cpu_set_t cpu;
+
+  for (int i = 0; i < argc; i++) {
+    cout << argv[i] << endl;
+  }
+
+  string file_name = ParseCommandLine(argc, argv, props);
+
+  const int num_cores = stoi(props.GetProperty("corecount", "1"));
+  const int num_threads = stoi(props.GetProperty("threadcount", "1"));
+
+  int total_record = stoi(props.GetProperty("recordcount", "1000"));
+  int total_ops = stoi(props.GetProperty("operationcount", "1000"));
+
+  CPU_ZERO(&cpu);
+  CPU_SET(4, &cpu);
+  err = pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpu);
+
+  pthread_barrier_init(&barrier, NULL, num_threads * num_cores);
+
+  pthread_t pids[64];
+  pthread_attr_t pattr;
+  struct ClientArgs args[64];
+  fprintf(stderr, " Main thread running on core %d\n", sched_getcpu());
+  for (int i = 0; i < num_cores; ++i) {
+    // actual_ops.emplace_back(async(launch::async,
+    //     DelegateClient, db, &wl, total_ops / num_threads, true));
+    err = pthread_attr_init(&pattr);
+    err = pthread_attr_setaffinity_np(&pattr, sizeof(cpu_set_t), &cpu);
+
+    CPU_ZERO(&cpu);
+    CPU_SET(i + 1, &cpu);
+    args[i].core = i + 1;
+
+    args[i].num_record = total_record / num_cores;
+    args[i].num_ops = total_ops / num_cores;
+    args[i].oks = 0;
+    err = pthread_create(&pids[i], &pattr, DelegateClient, &args[i]);
+      if (err) {
+        printf(" [%s on core %d] pthread_create for core %d return %d!\n", __func__, sched_getcpu(), i + sched_getcpu() + 1, err);
+      }
+  }
+
+  for (int i = 0; i < num_cores; ++i) {
+    pthread_join(pids[i], NULL);
+  }
+
+  struct timeval begin, done;
+  begin = args[0].start;
+  done = args[0].end;
+  for (int i = 1; i < num_cores; i++) {
+    if (!timercmp(&begin, &args[i].start, <=)) {
+      begin = args[i].start;
+    }
+    if (!timercmp(&done, &args[i].end, >=)) {
+      done = args[i].end;
+    }
   }
 
   int sum = 0;
-  // for (auto &n : actual_ops) {
-  //   assert(n.valid());
-  //   sum += n.get();
-  // }
-  for (int i = 0; i < num_threads; ++i) {
+  double thp = 0.0;
+  for (int i = 0; i < num_cores; i++) {
     sum += args[i].oks;
-  }
-  cerr << "# Loading records:\t" << sum << endl;
-
-  // Peforms transactions
-  // actual_ops.clear();
-  total_ops = stoi(props[ycsbc::CoreWorkload::OPERATION_COUNT_PROPERTY]);
-  utils::Timer<double> timer;
-  timer.Start();
-  for (int i = 0; i < num_threads; ++i) {
-    // actual_ops.emplace_back(async(launch::async,
-    //     DelegateClient, db, &wl, total_ops / num_threads, false));
-    struct ClientArgs * arg = &args[i];
-    arg->db = db;
-    arg->wl = &wl;
-    arg->num_ops = total_ops / num_threads;
-    arg->is_loading = false;
-    arg->oks = 0;
-    err = pthread_create(&pids[i], NULL, DelegateClient, (void *)arg);
-      if (err) {
-        perror(" pthread_create consumer1 failed(2)!");
-      }
+    thp += args[i].oks / ((args[i].end.tv_sec - args[i].start.tv_sec) + (args[i].end.tv_usec - args[i].start.tv_usec) / 1.0e6);
+    fprintf(stderr, " Core %d\tops\t%u\ttime\t%8.2f\tthp\t%8.2f\n", \
+            args[i].core, args[i].oks, ((args[i].end.tv_sec - args[i].start.tv_sec) + (args[i].end.tv_usec - args[i].start.tv_usec) / 1.0e6),  \
+            args[i].oks / ((args[i].end.tv_sec - args[i].start.tv_sec) + (args[i].end.tv_usec - args[i].start.tv_usec) / 1.0e6));
   }
 
-  for (int i = 0; i < num_threads; ++i) {
-    pthread_join(pids[i], NULL);
-  }
+  double duration = (done.tv_sec - begin.tv_sec) + (done.tv_usec - begin.tv_usec) / 1.0e6;
 
-  // assert((int)actual_ops.size() == num_threads);
-
-  sum = 0;
-  // for (auto &n : actual_ops) {
-  //   assert(n.valid());
-  //   sum += n.get();
-  // }
-  for (int i = 0; i < num_threads; ++i) {
-    sum += args[i].oks;
-  }
-  double duration = timer.End();
   cerr << "# Transaction throughput (KTPS)" << endl;
-  cerr << props["dbname"] << '\t' << file_name << '\t' << num_threads << '\t';
-  cerr << total_ops / duration / 1000 << endl;
+  // cerr << props->GetProperty("") << '\t' << file_name << '\t' << num_threads << '\t';
+  cerr << props["dbname"] << '\t' << file_name << '\t';
+  cerr << sum << '\t' << duration << '\t' << sum / duration / 1000 <<  '\t' << thp / 1000 << endl;
 
-
-#ifdef CYGNUS
-  cygnus_terminate();
-#endif
   return 0;
 }
 
@@ -170,7 +225,15 @@ string ParseCommandLine(int argc, char *argv[], utils::Properties &props) {
   int argindex = 1;
   string filename;
   while (argindex < argc && StrStartWith(argv[argindex], "-")) {
-    if (strcmp(argv[argindex], "-threads") == 0) {
+    if (strcmp(argv[argindex], "-cores") == 0) {
+      argindex++;
+      if (argindex >= argc) {
+        UsageMessage(argv[0]);
+        exit(0);
+      }
+      props.SetProperty("corecount", argv[argindex]);
+      argindex++;
+    } else if (strcmp(argv[argindex], "-threads") == 0) {
       argindex++;
       if (argindex >= argc) {
         UsageMessage(argv[0]);
